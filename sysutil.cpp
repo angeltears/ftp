@@ -1,6 +1,59 @@
 #include "sysutil.h"
 
 /**
+ * tcp_server -用来启动一个tcp服务器
+ * @host : 服务器主机名或者是ip地址
+ * @port : 服务器的端口号
+ * 成功返回监听套接字
+ */
+int tcp_server(const char *host, unsigned short port)
+{
+    int listenfd;
+    if ((listenfd = socket(PF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        ERR_EXIT("TCP_SERVER");
+    }
+    
+    struct sockaddr_in seraddr;
+    memset(&seraddr, 0, sizeof(seraddr));
+    seraddr.sin_family = AF_INET;
+    if(host != NULL)
+    {
+        if (inet_aton(host, &seraddr.sin_addr) == 0)
+        {
+            struct hostent *hp;
+            if((hp = gethostbyname(host)) == NULL)
+            {
+                ERR_EXIT("gethostbyname");
+            }
+            seraddr.sin_addr  = *(struct in_addr*)hp->h_addr;
+        }
+    }
+    else
+    {
+        seraddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    }
+
+    seraddr.sin_port = htons(port);
+    int on = 1;
+    if(setsockopt(listenfd, SOL_SOCKET,SO_REUSEADDR, (const char*)&on, sizeof(on))< 0)
+    {
+        ERR_EXIT("setsockopt");
+    }
+    if((bind(listenfd, (struct sockaddr*)&seraddr, sizeof(seraddr))) < 0)
+    {
+        ERR_EXIT("bind");
+    }
+    if((listen(listenfd, SOMAXCONN)) < 0)
+    {
+        ERR_EXIT("listen");
+    }
+
+    return listenfd;
+}
+
+
+/**
 *getlocalip 获得本地ip地址, 返回值等于-1表示获取失败,返回等于0表示获取成功
 *@ip  传出本地ip的地址
 */

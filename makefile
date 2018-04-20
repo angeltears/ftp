@@ -2,7 +2,7 @@
 CC = g++
 CFLAGS = -Wall -g
 BIN = miniftpd
-OBJS = main.o sysutil.o
+OBJS = main.o sysutil.o  ftpproto.o privparent.o session.o
 LIBS=-lcrypt
 
 $(BIN):$(OBJS)

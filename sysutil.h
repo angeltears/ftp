@@ -2,6 +2,8 @@
 #include "common.h"
 
 
+int tcp_server(const char *host, unsigned short port);
+
 int getlocalip(char *ip);
 
 void activate_nonblock(int fd);
@@ -13,7 +15,7 @@ int accept_timeout(int fd, struct sockaddr_in *addr, unsigned int wait_seconds);
 int connect_timeout(int fd, struct sockaddr_in *addr, unsigned int wait_seconds);
 
 ssize_t readn(int fd, void* buf, size_t count);
-ssize_t waiten(int fd, void* buf, size_t count);
+ssize_t writen(int fd, void* buf, size_t count);
 ssize_t recv_peek(int sockfd, void *buf, size_t len);
 ssize_t readline(int sockfd, void *buf, size_t maxline);
 void send_fd(int sock_fd, int fd);
