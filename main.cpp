@@ -19,12 +19,14 @@
 
 int main()
 {
+
   if (getuid() != 0)
   {
     fprintf(stderr, "miniftp must start be as root\n");
     exit(EXIT_FAILURE);
   }
-  session_t sess = 
+
+  session_t sess =
   {
       /*控制链接*/
       -1,"","","",
@@ -44,7 +46,7 @@ int main()
      pid = fork();
      if (pid == -1)
         ERR_EXIT("fork");
-     
+
      if (pid == 0)    //子进程
      {
          close(listenfd);

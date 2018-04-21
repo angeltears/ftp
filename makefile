@@ -13,3 +13,4 @@ $(BIN):$(OBJS)
 	$(CC) $(CFLAGS) -c $< -o $@ -g
 clean:
 	rm -f *.o $(BIN)
+

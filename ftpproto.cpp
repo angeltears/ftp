@@ -18,11 +18,12 @@ void handle_child(session_t *sess)
         else if(ret == 0)
             exit(EXIT_SUCCESS);
         str_trim_crlf(sess->cmdline);
-        printf("cmdline=[%s]\n",sess->cmdline);
         //解析FTP命令与参数
-        //处理内部命令
         str_split(sess->cmdline, sess->cmd, sess->arg, ' ');
-        printf("cmd = [%s], arg = [%s]", sess->cmd, sess->arg );
+        //将命令转化成大写
+        str_upper(sess->cmd);
+        //处理内部命令
+
     }
     
 }
