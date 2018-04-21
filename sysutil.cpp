@@ -278,7 +278,7 @@ int connect_timeout(int fd, struct sockaddr_in *addr, unsigned int wait_seconds)
 			/* 此时错误信息不会保存至errno变量中，因此，需要调用getsockopt来获取。 */
             int err;
             socklen_t len = sizeof(err);
-            int sockopt = getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &socklen);
+            int sockopt = getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len);
             if (sockopt == -1)
             {
                 return -1;
@@ -315,7 +315,7 @@ ssize_t readn(int fd, void* buf, size_t count)
     char *bufp = (char *)buf;
     while(nleft > 0)
     {
-        nread = read(fd, buf, nleft);
+        nread = read(fd, bufp, nleft);
         if (nread < 0)
         {
             if (errno == EINTR)
@@ -324,7 +324,7 @@ ssize_t readn(int fd, void* buf, size_t count)
             }
             return -1;
         }
-        if (nread == 0)
+        else if (nread == 0)
         {
             return count - nleft;
         }
@@ -378,16 +378,13 @@ ssize_t writen(int fd, void* buf, size_t count)
  */
 ssize_t recv_peek(int sockfd, void *buf, size_t len)
 {
-    int ret;
-    while (1)
+	while (1) 
     {
-        ret = recv(sockfd, buf, len, MSG_PEEK);
-        if (errno == EINTR)
-            continue;
-        else 
-            return -1;
-    }
-    
+		int ret = recv(sockfd, buf, len, MSG_PEEK);
+		if (ret == -1 && errno == EINTR)
+			continue;
+		return ret;
+	}
 }
 
 /**
@@ -399,39 +396,43 @@ ssize_t recv_peek(int sockfd, void *buf, size_t len)
  */
 ssize_t readline(int sockfd, void *buf, size_t maxline)
 {
-    int ret;
-    int nleft  = maxline;
-    int nread;
-    char *bufp = (char *)buf;
-    while (1)
+	int ret;
+	int nread;
+	char *bufp = (char *)buf;
+	int nleft = maxline;
+	while (1) 
     {
-        int ret = recv_peek(sockfd, bufp, maxline);
-        if (ret < 0)
-            return ret;
-        else if (ret == 0)
-            return ret;
-        
-        nread = ret;
-        for (int i = 0; i < nread; i++)
-        {
-            if (bufp[i] == '\n')
-            {
-                ret = readn(sockfd, bufp, i+1);
-                if (ret != i + 1)
-                    exit(EXIT_FAILURE);
-            }
-        }
+		ret = recv_peek(sockfd, bufp, nleft);
+		if (ret < 0)
+			return ret;
+		else if (ret == 0)
+			return ret;
 
-        if (nread > nleft)
+		nread = ret;
+		int i;
+		for (i=0; i<nread; i++) 
+        {
+			if (bufp[i] == '\n') 
+            {
+				ret = readn(sockfd, bufp, i+1);
+				if (ret != i+1)
+					exit(EXIT_FAILURE);
+
+				return ret;
+			}
+		}
+
+		if (nread > nleft)
 			exit(EXIT_FAILURE);
-        
-        nleft -= nread;
-        ret = readn(sockfd, bufp, nread);
+
+		nleft -= nread;
+		ret = readn(sockfd, bufp, nread);
 		if (ret != nread)
 			exit(EXIT_FAILURE);
-
 		bufp += nread;
-    }
+	}
+
+	return -1;
 }
 
 /**
