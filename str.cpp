@@ -20,9 +20,9 @@ void str_trim_crlf(char *str)
  * @right: 输出cmdarg
  * @c: 分割标志
  */
-void str_split(char *str, char *left, char *right, char c)
+void str_split(const char *str, char *left, char *right, char c)
 {
-    char *p = strchr(str, c);
+    char *p = strchr((char *)str, c);
     if (p == NULL)
     {
         strcpy(left, str);
