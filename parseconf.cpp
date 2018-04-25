@@ -1,5 +1,5 @@
 //
-// Created by root on 18-4-25.
+// Created by hyj on 18-4-25.
 //
 
 #include "parseconf.h"

@@ -8,6 +8,7 @@
 
 /* typedef struct session
 {
+    uid_t uid;
     // 控制链接
     char cmdline[MAX_COMMAND_LINE];
     char cmd[MAX_COMMAND];
@@ -19,9 +20,7 @@
 
 int main()
 {
-    parseconf_load_file("miniftpd.config");
-    printf("%d\n",tunable_pasv_enable);
-    printf("%d\n",tunable_port_enable);
+    parseconf_load_file(MINIFPT_CONFIG);
     if (getuid() != 0)
     {
         fprintf(stderr, "miniftp must start be as root\n");
@@ -31,7 +30,7 @@ int main()
     session_t sess =
     {
          /*控制链接*/
-         -1,"","","",
+         0,-1,"","","",
         /*父子进程通道*/
         -1,-1
     };

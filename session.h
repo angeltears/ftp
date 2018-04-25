@@ -5,6 +5,7 @@
 
 typedef struct session_t
 {
+    uid_t uid;
     // 控制链接
     int ctrl_fd;
     char cmdline[MAX_COMMAND_LINE];
