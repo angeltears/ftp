@@ -1,9 +1,9 @@
 #include "common.h"
 #include "sysutil.h"
 #include "session.h"
-
 #include <iostream>
-
+#include "tunable.h"      
+#include "parseconf.h"
 
 
 /* typedef struct session
@@ -19,45 +19,46 @@
 
 int main()
 {
+    parseconf_load_file("miniftpd.config");
+    printf("%d\n",tunable_pasv_enable);
+    printf("%d\n",tunable_port_enable);
+    if (getuid() != 0)
+    {
+        fprintf(stderr, "miniftp must start be as root\n");
+        exit(EXIT_FAILURE);
+    }
 
-  if (getuid() != 0)
-  {
-    fprintf(stderr, "miniftp must start be as root\n");
-    exit(EXIT_FAILURE);
-  }
+    session_t sess =
+    {
+         /*控制链接*/
+         -1,"","","",
+        /*父子进程通道*/
+        -1,-1
+    };
+    int listenfd = tcp_server(NULL, 5188);
+    int conn;
+    pid_t pid;
+    while(1)
+    {
+      conn = accept_timeout(listenfd, NULL, 0);
+      if (conn == -1)
+      {
+          ERR_EXIT("accpet_timeout");
+      }
+      pid = fork();
+      if (pid == -1)
+         ERR_EXIT("fork");
 
-  session_t sess =
-  {
-      /*控制链接*/
-      -1,"","","",
-      /*父子进程通道*/
-      -1,-1
-  };
-  int listenfd = tcp_server(NULL, 5188);
-  int conn;
-  pid_t pid;
-  while(1)
-  {
-     conn = accept_timeout(listenfd, NULL, 0);
-     if (conn == -1)
-     {
-         ERR_EXIT("accpet_timeout");
+      if (pid == 0)    //子进程
+      {
+          close(listenfd);
+          sess.ctrl_fd = conn;
+          begin_session(&sess);
+      }
+      else            //父进程
+      {
+          close(conn);
+      }
      }
-     pid = fork();
-     if (pid == -1)
-        ERR_EXIT("fork");
-
-     if (pid == 0)    //子进程
-     {
-         close(listenfd);
-         sess.ctrl_fd = conn;
-         begin_session(&sess);
-     }
-     else            //父进程
-     {
-         close(conn);
-     }
-
-  }
-  return 0;
-}
+    return 0;
+ }
