@@ -16,6 +16,8 @@
     //父子进程通道
     int parent_fd;
     int child_fd;
+    // FTP协议状态
+    bool is_ascii;
 }session; */
 
 int main()
@@ -32,7 +34,9 @@ int main()
          /*控制链接*/
          0,-1,"","","",
         /*父子进程通道*/
-        -1,-1
+        -1,-1,
+         /*FTP协议状态*/
+         0
     };
     int listenfd = tcp_server(NULL, 5188);
     int conn;

@@ -342,7 +342,7 @@ ssize_t readn(int fd, void* buf, size_t count)
  * @count: 要读取的字节数
  * 成功返回count，失败返回-1
  */
-ssize_t writen(int fd, void* buf, size_t count)
+ssize_t writen(int fd, const void* buf, size_t count)
 {
     ssize_t nleft = count;
     ssize_t nwriten;
