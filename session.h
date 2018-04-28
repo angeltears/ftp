@@ -5,12 +5,15 @@
 
 typedef struct session_t
 {
-    uid_t uid;
     // 控制链接
+    uid_t uid;
     int ctrl_fd;
     char cmdline[MAX_COMMAND_LINE];
     char cmd[MAX_COMMAND];
     char arg[MAX_ARG];
+    // 数据连接
+    struct sockaddr_in *port_addr;
+    int data_fd;
     //父子进程通道
     int parent_fd;
     int child_fd;

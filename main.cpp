@@ -1,24 +1,30 @@
 #include "common.h"
 #include "sysutil.h"
 #include "session.h"
+#include "ftpproto.h"
 #include <iostream>
 #include "tunable.h"      
 #include "parseconf.h"
 
 
-/* typedef struct session
+/*
+typedef struct session_t
 {
-    uid_t uid;
     // 控制链接
+    uid_t uid;
     char cmdline[MAX_COMMAND_LINE];
     char cmd[MAX_COMMAND];
     char arg[MAX_ARG];
+    int ctrl_fd;
+    // 数据连接
+    struct sockaddr_in *port_addr;
     //父子进程通道
     int parent_fd;
     int child_fd;
     // FTP协议状态
     bool is_ascii;
-}session; */
+}session_t ;
+ */
 
 int main()
 {
@@ -33,6 +39,8 @@ int main()
     {
          /*控制链接*/
          0,-1,"","","",
+         /*数据连接*/
+         NULL,-1,
         /*父子进程通道*/
         -1,-1,
          /*FTP协议状态*/
