@@ -13,6 +13,7 @@ typedef struct session_t
     char arg[MAX_ARG];
     // 数据连接
     struct sockaddr_in *port_addr;
+    int pasv_listen_fd;
     int data_fd;
     //父子进程通道
     int parent_fd;

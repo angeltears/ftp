@@ -8,16 +8,19 @@
 
 
 /*
+
 typedef struct session_t
 {
     // 控制链接
     uid_t uid;
+    int ctrl_fd;
     char cmdline[MAX_COMMAND_LINE];
     char cmd[MAX_COMMAND];
     char arg[MAX_ARG];
-    int ctrl_fd;
     // 数据连接
     struct sockaddr_in *port_addr;
+    int pasv_listen_fd;
+    int data_fd;
     //父子进程通道
     int parent_fd;
     int child_fd;
@@ -40,12 +43,14 @@ int main()
          /*控制链接*/
          0,-1,"","","",
          /*数据连接*/
-         NULL,-1,
+         NULL,-1,-1,
         /*父子进程通道*/
         -1,-1,
          /*FTP协议状态*/
          0
     };
+
+    signal(SIGCHLD, SIG_IGN);
     int listenfd = tcp_server(NULL, 5188);
     int conn;
     pid_t pid;
