@@ -1,5 +1,10 @@
 #include "sysutil.h"
 
+/**
+ * tcp_client -用来创建一个tcp服务器，指定一个端口号
+ * @port : 服务器的端口号，大于０则指定一个端口号，等于０则为随机分配一个端口号
+ * 成功返回监听套接字
+ */
 
 int tcp_client(unsigned short port)
 {

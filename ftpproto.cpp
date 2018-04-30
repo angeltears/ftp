@@ -3,6 +3,7 @@
 #include "str.h"
 #include "ftpcode.h"
 #include "tunable.h"
+#include "privsock.h"
 
 void ftp_lreply(session_t *sess, int status, const char *text);
 
@@ -113,8 +114,56 @@ static ftpcmd_t ctrl_cmds[] = {
 };
 
 
-int get_port_fd(session_t *sess);
-int get_pasv_fd(session_t *sess);
+int get_port_fd(session_t *sess)
+{
+    priv_sock_send_cmd(sess->child_fd, PRIV_SOCK_GET_DATA_SOCK);
+    unsigned short port = ntohs(sess->port_addr->sin_port);
+    char *ip = inet_ntoa(sess->port_addr->sin_addr);
+
+    priv_sock_send_int(sess->child_fd, (int)port);
+    priv_sock_send_buf(sess->child_fd, ip, strlen(ip));
+    char res = priv_sock_get_result(sess->child_fd);
+    if (res == PRIV_SOCK_RESULT_BAD)
+    {
+        return 0;
+    }
+    else if (res == PRIV_SOCK_RESULT_OK)
+    {
+        sess->data_fd = priv_sock_recv_fd(sess->child_fd);
+    }
+
+    return 1;
+}
+
+
+int get_pasv_fd(session_t *sess)
+{
+
+    priv_sock_send_cmd(sess->child_fd, PRIV_SOCK_PASV_ACCEPT);
+    char res = priv_sock_get_cmd(sess->child_fd);
+    if (res == PRIV_SOCK_RESULT_BAD)
+    {
+        return 0;
+    }
+    else if (res == PRIV_SOCK_RESULT_OK)
+    {
+        sess->data_fd = priv_sock_recv_fd(sess->child_fd);
+    }
+
+    return 1;
+    /*
+    int fd = accept_timeout(sess->pasv_listen_fd, NULL, tunable_accept_timeout);
+    //得到一个已连接套接字
+    close(sess->pasv_listen_fd);
+    sess->pasv_listen_fd = -1;
+    sess->data_fd = fd;
+    if (fd == -1)
+    {
+        return 0;
+    }
+    return 1;
+     */
+}
 int get_transfer_fd(session_t *sess)
 {
     // 检测是否收到post和pasv命令
@@ -123,9 +172,12 @@ int get_transfer_fd(session_t *sess)
         ftp_reply(sess, FTP_BADSENDCONN, "Use PORT or PASV first");
         return 0;
     }
+
+    int ret = 1;
     // 主动模式
     if (port_active(sess))
     {
+        /*
         //tcp_clint(20)
         int fd = tcp_client(0);
         if (connect_timeout(fd, sess->port_addr, tunable_connect_timeout) < 0 )
@@ -134,26 +186,39 @@ int get_transfer_fd(session_t *sess)
             return 0;
         }
         sess->data_fd = fd;
+        */
+        if (get_port_fd(sess) == 0)
+        {
+            ret = 0;
+        }
     }
 
     if (pasv_active(sess))
     {
+        /*
         int fd = accept_timeout(sess->pasv_listen_fd, NULL, tunable_accept_timeout);
         close(sess->pasv_listen_fd);
         if (fd == -1)
         {
-            return 0;
+            ret = 0;
         }
 
         sess->pasv_listen_fd = -1;
         sess->data_fd = fd;
+         */
+        if (get_pasv_fd(sess) == 0)
+        {
+            ret = 0;
+        }
     }
+
+
     if (sess->port_addr)
     {
         free(sess->port_addr);
         sess->port_addr = NULL;
     }
-    return 1;
+    return ret;
 }
 int port_active(session_t *sess)
 {
@@ -172,15 +237,32 @@ int port_active(session_t *sess)
 }
 int pasv_active(session_t *sess)
 {
-    if (sess->pasv_listen_fd != -1)
+
+    /*
+
+         if (sess->pasv_listen_fd != -1)
+         {
+             if (port_active(sess))
+             {
+                 fprintf(stderr, "both port and pasv are active");
+             }
+             return 1;
+         }
+         return 0;
+    */
+    priv_sock_send_cmd(sess->child_fd, PRIV_SOCK_PASV_ACTIVE);
+    int active = priv_sock_get_int(sess->child_fd);
+    if (active == 1)
     {
         if (port_active(sess))
         {
             fprintf(stderr, "both port and pasv are active");
+            exit(EXIT_FAILURE);
         }
         return 1;
     }
     return 0;
+
 }
 
 /**
@@ -433,6 +515,8 @@ static void do_feat(session_t *sess)
     writen(sess->ctrl_fd, " UTF8\r\n", strlen(" UTF8\r\n"));
     ftp_reply(sess, FTP_FEAT, "End");
 }
+
+
 static void do_cwd(session_t *sess)
 {
 
@@ -454,6 +538,7 @@ static void do_port(session_t *sess)
     sess->port_addr->sin_family = AF_INET;
     unsigned char * p = (unsigned char *)&sess->port_addr->sin_port;
     p[0] = v[4];
+
     p[1] = v[5];
     p = (unsigned char *)&sess->port_addr->sin_addr;
     p[0] = v[0];
@@ -467,6 +552,7 @@ static void do_pasv(session_t *sess)
 {
     char ip[16] = {0};
     getlocalip(ip);
+    /*
     sess->pasv_listen_fd = tcp_server(ip, 0);
     struct sockaddr_in addr;
     socklen_t socklen = sizeof(addr);
@@ -476,12 +562,18 @@ static void do_pasv(session_t *sess)
     }
 
     unsigned short port = ntohs(addr.sin_port);
+    */
+
+    priv_sock_send_cmd(sess->child_fd, PRIV_SOCK_PASV_LISTEN);
+    unsigned short port = (int)priv_sock_get_int(sess->child_fd);
     unsigned int v[4];
     sscanf(ip, "%u.%u.%u.%u",&v[0],&v[1],&v[2],&v[3]);
     char text[1024] = {0};
-    sprintf(text, "Entering Passive Mode (%u,%u,%u,%u,%u,%u).",v[0],v[1],v[2],v[3],port >> 8, port & 0xff);
+    sprintf(text, "Entering Passive Mode (%u,%u,%u,%u,%u,%u).",v[0],v[1],v[2],v[3],port>>8, port&0xFF);
     ftp_reply(sess, FTP_PASVOK, text);
 }
+
+
 static void do_type(session_t *sess)
 {
     if (strcmp(sess->arg, "A") == 0)

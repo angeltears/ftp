@@ -28,6 +28,8 @@ char priv_sock_get_cmd(int fd);
 void priv_sock_send_result(int fd, char res);
 char priv_sock_get_result(int fd);
 
+unsigned short priv_sock_get_unshort(int fd);
+void priv_sock_send_unshort(int fd, unsigned short port);
 void priv_sock_send_int(int fd, int the_int);
 int priv_sock_get_int(int fd);
 void priv_sock_send_buf(int fd, const char *buf, unsigned int len);

@@ -120,6 +120,30 @@ int priv_sock_get_int(int fd)
 
     return the_int;
 }
+void priv_sock_send_unshort(int fd, unsigned short port)
+{
+    int ret;
+    ret = writen(fd, &port, sizeof(port));
+    if (ret != sizeof(port))
+    {
+    fprintf(stderr, "priv_sock_send_unshort errno\n");
+    exit(EXIT_FAILURE);
+    }
+
+}
+unsigned short priv_sock_get_unshort(int fd)
+{
+    unsigned short port;
+    int ret;
+    ret = readn(fd, &port, sizeof(port));
+    if (ret != sizeof(port))
+    {
+        fprintf(stderr, "priv_sock_get_unshort error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    return port;
+}
 void priv_sock_send_buf(int fd, const char *buf, unsigned int len)
 {
     priv_sock_send_int(fd, (int)len);
