@@ -551,3 +551,103 @@ int recv_fd(const int sock_fd)
 
 	return recv_fd;
 }
+
+
+const char *statbuf_get_perms(struct stat *sbuf)
+{
+    static char power[] = "----------";
+    power[0] = '?';
+
+    mode_t mode = sbuf->st_mode;
+    switch (mode & S_IFMT)
+    {
+        case S_IFREG:
+            power[0] = '-';
+            break;
+        case S_IFDIR:
+            power[0] = 'd';
+            break;
+        case S_IFLNK:
+            power[0] = 'l';
+            break;
+        case S_IFSOCK:
+            power[0] = 's';
+            break;
+        case S_IFIFO:
+            power[0] = 'p';
+            break;
+        case S_IFBLK:
+            power[0] = 'b';
+            break;
+        case S_IFCHR:
+            power[0] = 'C';
+            break;
+    }
+    if (mode & S_IRUSR)
+    {
+        power[1] = 'r';
+    }
+    if (mode & S_IWUSR)
+    {
+        power[2] = 'w';
+    }
+    if (mode & S_IXUSR)
+    {
+        power[3] = 'x';
+    }
+    if (mode & S_IRGRP)
+    {
+        power[4] = 'r';
+    }
+    if (mode & S_IWGRP)
+    {
+        power[5] = 'w';
+    }
+    if (mode & S_IXGRP)
+    {
+        power[6] = 'x';
+    }
+    if (mode & S_IROTH)
+    {
+        power[7] = 'r';
+    }
+    if (mode & S_IWOTH)
+    {
+        power[8] = 'w';
+    }
+    if (mode & S_IXOTH)
+    {
+        power[9] = 'x';
+    }
+    if (mode & S_ISUID)
+    {
+        power[3] = (power[3] == 'x') ? 's':'S';
+    }
+    if (mode & S_ISGID)
+    {
+        power[6] = (power[6] == 'x') ? 's':'S';
+    }
+    if (mode & S_ISVTX)
+    {
+        power[9] = (power[9] == 'x') ? 's':'S';
+    }
+    return power;
+}
+
+
+const char *stabuf_get_date(struct stat *sbuf)
+{
+    const char *p_data_format = "%b %e %H:%M";
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    time_t local_time = tv.tv_sec;
+    if(sbuf->st_mtime > local_time || (local_time - sbuf->st_mtime) > 182 * 24 * 60 *60);
+    {
+        p_data_format = "%b %e %Y";
+    }
+
+    static char databuf[64] = {0};
+    struct tm * p_tm = localtime(&local_time);
+    strftime(databuf, sizeof(databuf), p_data_format, p_tm);
+    return databuf;
+}

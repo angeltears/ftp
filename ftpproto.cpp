@@ -287,110 +287,30 @@ int list_common(session_t *sess, int detail)
         {
             continue;
         }
-        char power[] = "----------";
-        power[0] = '?';
-
-        mode_t mode = sbuf.st_mode;
-        switch (mode & S_IFMT)
-        {
-            case S_IFREG:
-                power[0] = '-';
-                break;
-            case S_IFDIR:
-                power[0] = 'd';
-                break;
-            case S_IFLNK:
-                power[0] = 'l';
-                break;
-            case S_IFSOCK:
-                power[0] = 's';
-                break;
-            case S_IFIFO:
-                power[0] = 'p';
-                break;
-            case S_IFBLK:
-                power[0] = 'b';
-                break;
-            case S_IFCHR:
-                power[0] = 'C';
-                break;
-        }
-        if (mode & S_IRUSR)
-        {
-            power[1] = 'r';
-        }
-        if (mode & S_IWUSR)
-        {
-            power[2] = 'w';
-        }
-        if (mode & S_IXUSR)
-        {
-            power[3] = 'x';
-        }
-        if (mode & S_IRGRP)
-        {
-            power[4] = 'r';
-        }
-        if (mode & S_IWGRP)
-        {
-            power[5] = 'w';
-        }
-        if (mode & S_IXGRP)
-        {
-            power[6] = 'x';
-        }
-        if (mode & S_IROTH)
-        {
-            power[7] = 'r';
-        }
-        if (mode & S_IWOTH)
-        {
-            power[8] = 'w';
-        }
-        if (mode & S_IXOTH)
-        {
-            power[9] = 'x';
-        }
-        if (mode & S_ISUID)
-        {
-            power[3] = (power[3] == 'x') ? 's':'S';
-        }
-        if (mode & S_ISGID)
-        {
-            power[6] = (power[6] == 'x') ? 's':'S';
-        }
-        if (mode & S_ISVTX)
-        {
-            power[9] = (power[9] == 'x') ? 's':'S';
-        }
-
         char buf[1024] = {0};
-        int off = sprintf(buf, "%s", power);
-        off += sprintf(buf + off, " %3d %-8d %-8d", sbuf.st_nlink, sbuf.st_uid, sbuf.st_gid);
-        off += sprintf(buf + off, "%8lu ", sbuf.st_size);
-
-        const char *p_data_format = "%b %e %H:%M";
-        struct timeval tv;
-        gettimeofday(&tv, NULL);
-        time_t local_time = tv.tv_sec;
-        if(sbuf.st_mtime > local_time || (local_time - sbuf.st_mtime) > 182 * 24 * 60 *60);
+        if (detail)
         {
-            p_data_format = "%b %e %Y";
-        }
+            const char *power = statbuf_get_perms(&sbuf);
+            int off = sprintf(buf, "%s", power);
+            off += sprintf(buf + off, " %3d %-8d %-8d", sbuf.st_nlink, sbuf.st_uid, sbuf.st_gid);
+            off += sprintf(buf + off, "%8lu ", sbuf.st_size);
 
-        char databuf[64] = {0};
-        struct tm * p_tm = localtime(&local_time);
-        strftime(databuf, sizeof(databuf), p_data_format, p_tm);
-        off += sprintf(buf + off, "%s ", databuf);
-        if (S_ISLNK(sbuf.st_mode))
-        {
-            char tmp[1024] = {0};
-            readlink(dt->d_name, tmp, sizeof(tmp));
-            off +=  sprintf(buf + off, "%s -> %s\r\n",dt->d_name, tmp);
+            const char *databuf = stabuf_get_date(&sbuf);
+            off += sprintf(buf + off, "%s ", databuf);
+
+            if (S_ISLNK(sbuf.st_mode))
+            {
+                char tmp[1024] = {0};
+                readlink(dt->d_name, tmp, sizeof(tmp));
+                off += sprintf(buf + off, "%s -> %s\r\n", dt->d_name, tmp);
+            } else
+            {
+                off += sprintf(buf + off, "%s\r\n", dt->d_name);
+            }
         }
         else
         {
-            off += sprintf(buf + off, "%s\r\n",dt->d_name);
+            sprintf(buf, "%s\r\n", dt->d_name);
         }
         writen(sess->data_fd, buf, strlen(buf));
     }
@@ -489,6 +409,7 @@ static void do_pass(session_t *sess)
         ftp_reply(sess, FTP_LOGINERR, "Login incorrect.");
         return;
     }
+    umask(tunable_local_umask);
     setegid(pw->pw_gid);
     seteuid(pw->pw_uid);
     chdir(pw->pw_dir);
@@ -519,16 +440,32 @@ static void do_feat(session_t *sess)
 
 static void do_cwd(session_t *sess)
 {
-
+    if (chdir(sess->arg) >= 0)
+    {
+        ftp_reply(sess, FTP_CWDOK, "Directory successfully changed.");
+        return;
+    }
+    ftp_reply(sess, FTP_FILEFAIL, "Fail to change directory");
 }
+
+
 static void do_cdup(session_t *sess)
 {
-
+    if (chdir("..") >= 0)
+    {
+        ftp_reply(sess, FTP_CWDOK, "Directory successfully changed.");
+        return;
+    }
+    ftp_reply(sess, FTP_FILEFAIL, "Fail to change directory");
 }
+
+
 static void do_quit(session_t *sess)
 {
 
 }
+
+
 static void do_port(session_t *sess)
 {
     //PORT 127,0,0,1,227,31
@@ -565,7 +502,7 @@ static void do_pasv(session_t *sess)
     */
 
     priv_sock_send_cmd(sess->child_fd, PRIV_SOCK_PASV_LISTEN);
-    unsigned short port = (int)priv_sock_get_int(sess->child_fd);
+    unsigned short port = priv_sock_get_unshort(sess->child_fd);
     unsigned int v[4];
     sscanf(ip, "%u.%u.%u.%u",&v[0],&v[1],&v[2],&v[3]);
     char text[1024] = {0};
@@ -589,6 +526,8 @@ static void do_type(session_t *sess)
         ftp_reply(sess, FTP_BADCMD, "Unrecognised Type cmd.");
     }
 }
+
+
 static void do_retr(session_t *sess)
 {
 
@@ -597,11 +536,32 @@ static void do_stor(session_t *sess)
 {
 
 }
+
 static void do_appe(session_t *sess)
 {
 
 }
+
 static void do_list(session_t *sess)
+{
+    //创建数据链接
+    if (get_transfer_fd(sess) == 0)
+    {
+        return;
+    }
+    //150
+    ftp_reply(sess, FTP_DATACONN, "Here comes the directory listing.");
+    //传输列表
+    list_common(sess, 1);
+    //关闭数据套接字
+    close(sess->data_fd);
+    sess->data_fd = -1;
+    //226
+    ftp_reply(sess, FTP_TRANSFEROK,"Directory send OK.");
+}
+
+
+static void do_nlst(session_t *sess)
 {
     //创建数据链接
     if (get_transfer_fd(sess) == 0)
@@ -618,18 +578,17 @@ static void do_list(session_t *sess)
     //226
     ftp_reply(sess, FTP_TRANSFEROK,"Directory send OK.");
 }
-static void do_nlst(session_t *sess)
-{
 
-}
 static void do_rest(session_t *sess)
 {
 
 }
+
 static void do_abor(session_t *sess)
 {
 
 }
+
 static void do_pwd(session_t *sess)
 {
     char dir[1024] = {0};
@@ -639,18 +598,55 @@ static void do_pwd(session_t *sess)
     sprintf(buf, "\"%s\"", dir);
     ftp_reply(sess, FTP_PWDOK, buf);
 }
+
 static void do_mkd(session_t *sess)
 {
-
+    if (mkdir(sess->arg, 0777) < 0)
+    {
+        ftp_reply(sess, FTP_FILEFAIL, "Create directory failed.");
+        return;
+    }
+    char text[4096] = {0};
+    if (sess->arg[0] == '/')
+    {
+        sprintf(text,"%s create", sess->arg);
+    }
+    else
+    {
+        char dir[4096+1] = {0};
+        getcwd(dir, sizeof(dir));
+        if (dir[strlen(dir) - 1] == '/')
+        {
+            sprintf(text,"%s%s create",dir, sess->arg);
+        }
+        else
+        {
+            sprintf(text,"%s/%s create",dir, sess->arg);
+        }
+    }
+    ftp_reply(sess, FTP_MKDIROK, text);
 }
+
 static void do_rmd(session_t *sess)
 {
-
+    if (rmdir(sess->arg) < 0)
+    {
+        ftp_reply(sess, FTP_FILEFAIL, "Remove Directory failed.");
+        return;
+    }
+    ftp_reply(sess, FTP_RMDIROK, "Remove Directory Successful.");
 }
+
 static void do_dele(session_t *sess)
 {
-
+    if (unlink(sess->arg) < 0)
+    {
+        ftp_reply(sess, FTP_FILEFAIL, "Delete file failed.");
+        return;
+    }
+    ftp_reply(sess, FTP_DELEOK, "Delete file Successful.");
 }
+
 static void do_rnfr(session_t *sess)
 {
 
