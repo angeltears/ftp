@@ -292,7 +292,7 @@ int list_common(session_t *sess, int detail)
         {
             const char *power = statbuf_get_perms(&sbuf);
             int off = sprintf(buf, "%s", power);
-            off += sprintf(buf + off, " %3d %-8d %-8d", sbuf.st_nlink, sbuf.st_uid, sbuf.st_gid);
+            off += sprintf(buf + off, " %3d %-8d %-8d", (int)sbuf.st_nlink, (int)sbuf.st_uid, (int)sbuf.st_gid);
             off += sprintf(buf + off, "%8lu ", sbuf.st_size);
 
             const char *databuf = stabuf_get_date(&sbuf);
@@ -317,6 +317,7 @@ int list_common(session_t *sess, int detail)
     closedir(dir);
     return 1;
 }
+
 void handle_child(session_t *sess)
 {  
     writen(sess->ctrl_fd, (void *)"220 (minifpt 0.1)\r\n", strlen("220 (minifpt 0.1)\r\n"));
@@ -530,7 +531,114 @@ static void do_type(session_t *sess)
 
 static void do_retr(session_t *sess)
 {
+    //下载文件
+    //断点续传
 
+    //创建数据链接
+    if (get_transfer_fd(sess) == 0)
+    {
+        return;
+    }
+
+    long long offset = sess->restart_pos;
+    sess->restart_pos = 0;
+
+    //打开文件　
+    int fd = open(sess->arg, O_RDONLY);
+    if (fd == -1)
+    {
+        ftp_reply(sess, FTP_FILEFAIL, "Failed to open file.");
+        return;
+    }
+    //加读锁
+    int ret = lock_file_read(fd);
+    if (ret < 0)
+    {
+        ftp_reply(sess, FTP_FILEFAIL, "Failed to open file.");
+        return;
+    }
+
+    //判断是否是一个普通文件
+    struct stat sbuf;
+    ret = fstat(fd, &sbuf);
+    if (ret < 0 || !S_ISREG(sbuf.st_mode))
+    {
+        ftp_reply(sess, FTP_FILEFAIL, "Failed to open file.");
+        return;
+    }
+
+    if (offset != 0)
+    {
+        ret = lseek(fd, SEEK_SET, offset);
+        if (ret == -1)
+        {
+            ftp_reply(sess, FTP_FILEFAIL, "Failed to open file.");
+            return;
+        }
+    }
+    //150
+    char text[1024] = {0};
+    if (sess->is_ascii)
+    {
+        sprintf(text, "Opening BINARY mode data connection for %s (%lld bytes).",
+                sess->arg, (long long)sbuf.st_size);
+    }
+    else
+    {
+        sprintf(text, "Opening BINARY mode data connection for %s (%lld bytes).",
+                sess->arg, (long long)sbuf.st_size);
+    }
+    //ＡＳＣＩＩ转化　(选做）
+
+    ftp_reply(sess, FTP_DATACONN, text);
+
+    //下载文件
+    int flag = 0;
+    char buf[4096];
+    while (1)
+    {
+        ret = read(fd, buf, sizeof(buf));
+        if (ret == -1)
+        {
+            if (errno = EINTR)
+            {
+                continue;
+            }
+            else
+            {
+                flag = 1;
+                break;
+            }
+        }
+        else if (ret == 0)
+        {
+            flag = 0;
+            break;
+        }
+
+        if (writen(sess->data_fd, buf, ret) != ret)
+        {
+            flag = 2;
+            break;
+        }
+    }
+
+    //关闭数据套接字
+    close(sess->data_fd);
+    sess->data_fd = -1;
+    //226
+    if (flag == 0)
+    {
+        ftp_reply(sess, FTP_TRANSFEROK, "Transfer complete.");
+    }
+    else if (flag == 1)
+    {
+        ftp_reply(sess, FTP_BADSENDFILE, "Failure reading from local file");
+    }
+    else if (flag == 2)
+    {
+        ftp_reply(sess, FTP_BADSENDNET, "Failure writting to network stream,");
+    }
 }
 static void do_stor(session_t *sess)
 {
@@ -581,7 +689,11 @@ static void do_nlst(session_t *sess)
 
 static void do_rest(session_t *sess)
 {
-
+    //atoll;
+    sess->restart_pos = str_to_longlong(sess->arg);
+    char text[1024] = {0};
+    sprintf(text, "Restart position accpted (%lld)", sess->restart_pos);
+    ftp_reply(sess, FTP_RESTOK, text);
 }
 
 static void do_abor(session_t *sess)
@@ -649,20 +761,52 @@ static void do_dele(session_t *sess)
 
 static void do_rnfr(session_t *sess)
 {
-
+    sess->rnfr_name = (char *)malloc(strlen(sess->arg) + 1);
+    memset(sess->rnfr_name, 0, strlen(sess->arg) + 1);
+    strcpy(sess->rnfr_name, sess->arg);
+    ftp_reply(sess, FTP_RNFROK, "Ready for rnto.");
 }
+
 static void do_rnto(session_t *sess)
 {
-
+    if (sess->rnfr_name == NULL)
+    {
+        ftp_reply(sess, FTP_NEEDRNFR, "RNFP required frist.");
+        return;
+    }
+    if (rename(sess->rnfr_name, sess->arg) < 0)
+    {
+        ftp_reply(sess, FTP_FILEFAIL, "Rename failed.");
+    }
+    ftp_reply(sess, FTP_RENAMEOK, "Rename successful.");
+    free(sess->rnfr_name);
+    sess->rnfr_name = NULL;
 }
+
 static void do_site(session_t *sess)
 {
 
 }
 static void do_size(session_t *sess)
 {
+    struct stat buf;
+    if (stat(sess->arg, &buf) < 0)
+    {
+        ftp_reply(sess, FTP_FILEFAIL, "Size failed.");
+        return;
+    }
 
+    if (!S_ISREG(buf.st_mode))
+    {
+        ftp_reply(sess, FTP_FILEFAIL, "Could not get file size.");
+        return;
+    }
+
+    char text[1024] = {0};
+    sprintf(text, "%lld", buf.st_size);
+    ftp_reply(sess, FTP_SIZEOK, "Could not get file size.");
 }
+
 static void do_stat(session_t *sess)
 {
 

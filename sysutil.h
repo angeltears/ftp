@@ -25,3 +25,6 @@ int recv_fd(const int sock_fd);
 
 const char *statbuf_get_perms(struct stat *sbuf);
 const char *stabuf_get_date(struct stat *sbuf);
+
+int lock_file_read(int fd);
+

@@ -1,4 +1,5 @@
 #include "sysutil.h"
+#include <ifaddrs.h>
 
 /**
  * tcp_client -用来创建一个tcp服务器，指定一个端口号
@@ -96,26 +97,29 @@ int tcp_server(const char *host, unsigned short port)
 */
 int getlocalip(char *ip)
 {
+
+
     char host[100] = {0};
     if (gethostname(host, sizeof(host))< 0)     //获得本地host的name
         return -1;
     struct hostent *hp;
-/*
-    struct hostent 
-    { 
-    char * h_name; / *主机的正式名称* / 
-    char ** h_aliases; / *别名列表* / 
-    int h_addrtype; / *主机地址类型* / 
-    int h_length; / *地址长度* / 
-    char ** h_addr_list; / *地址列表* / 
-    };
-    #define h_addr h_addr_list [0] 
-*/
+    /*
+             struct hostent
+             {
+             char * h_name; / *主机的正式名称* /
+             char ** h_aliases; / *别名列表* /
+             int h_addrtype; / *主机地址类型* /
+             int h_length; / *地址长度* /
+             char ** h_addr_list; / *地址列表* /
+             };
+             #define h_addr h_addr_list [0]
+    */
     if ((hp = gethostbyname(host)) == NULL)     //通过本地hostname获得主机信息
         return -1;
-    
+
     strcpy(ip, inet_ntoa(*(struct in_addr *)hp->h_addr));
-    return 0;
+        return 0;
+
 }
 
 /**
@@ -552,7 +556,6 @@ int recv_fd(const int sock_fd)
 	return recv_fd;
 }
 
-
 const char *statbuf_get_perms(struct stat *sbuf)
 {
     static char power[] = "----------";
@@ -634,7 +637,6 @@ const char *statbuf_get_perms(struct stat *sbuf)
     return power;
 }
 
-
 const char *stabuf_get_date(struct stat *sbuf)
 {
     const char *p_data_format = "%b %e %H:%M";
@@ -650,4 +652,23 @@ const char *stabuf_get_date(struct stat *sbuf)
     struct tm * p_tm = localtime(&local_time);
     strftime(databuf, sizeof(databuf), p_data_format, p_tm);
     return databuf;
+}
+
+int lock_file_read(int fd)
+{
+
+    int ret;
+    struct flock the_lock;
+    memset(&the_lock, 0, sizeof(the_lock));
+    the_lock.l_type = F_RDLCK;
+    the_lock.l_whence = SEEK_SET;
+    the_lock.l_start = 0;
+    the_lock.l_len = 0;
+    do
+    {
+        ret = fcntl(fd, F_SETLKW, &the_lock);
+    }
+    while (ret < 0 && errno == EINTR);
+
+    return ret;
 }

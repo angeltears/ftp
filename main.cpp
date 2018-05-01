@@ -26,6 +26,7 @@ typedef struct session_t
     int child_fd;
     // FTP协议状态
     bool is_ascii;
+    long long restart_pos;
 }session_t ;
  */
 
@@ -47,7 +48,7 @@ int main()
         /*父子进程通道*/
         -1,-1,
          /*FTP协议状态*/
-         0
+         0,0,NULL
     };
 
     signal(SIGCHLD, SIG_IGN);

@@ -20,6 +20,8 @@ typedef struct session_t
     int child_fd;
     // FTP协议状态
     bool is_ascii;
+    long long restart_pos;
+    char *rnfr_name;
 }session_t ;
 
 
