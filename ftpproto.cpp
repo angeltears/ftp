@@ -17,7 +17,7 @@ void check_abor(session_t *sess);
 
 int list_common(session_t *sess, int detail);
 void limit_rate(session_t *sess, int bytes_transfered, int is_upload);
-void upload_common(session_t *sess, int is_append);
+static void upload_common(session_t *sess, int is_append);
 
 int get_port_fd(session_t *sess);
 int get_pasv_fd(session_t *sess);
@@ -318,6 +318,145 @@ int list_common(session_t *sess, int detail)
     return 1;
 }
 
+static void upload_common(session_t *sess, int is_append)
+{
+    //创建数据链接
+    if (get_transfer_fd(sess) == 0)
+    {
+        return;
+    }
+
+    long long offset = sess->restart_pos;
+    sess->restart_pos = 0;
+
+    //打开文件　
+    int fd = open(sess->arg, O_CREAT | O_WRONLY, 0666);
+    if (fd == -1)
+    {
+        ftp_reply(sess, FTP_UPLOADFAIL, "Could not creat file");
+        return;
+    }
+    //加读锁
+    int ret = lock_file_write(fd);
+    if (ret == -1)
+    {
+        ftp_reply(sess,  FTP_UPLOADFAIL, "Could not creat file");
+        return;
+    }
+    if (!is_append && offset == 0)
+    {
+        ftruncate(fd, 0);
+        lseek(fd, 0, SEEK_SET);
+    }
+    else if (!is_append && offset != 0)
+    {
+        lseek(fd, offset, SEEK_SET);
+    }
+    else if (is_append)
+    {
+        lseek(fd, 0, SEEK_END);
+    }
+
+    //150
+    struct stat sbuf;
+    ret = fstat(fd, &sbuf);
+    if (!S_ISREG(sbuf.st_mode))
+    {
+        ftp_reply(sess, FTP_UPLOADFAIL, "Could not create file.");
+        return;
+    }
+
+    //150
+    char text[1024] = {0};
+    if (sess->is_ascii)
+    {
+        sprintf(text, "Opening ASCII mode data connection for %s (%lld bytes).",
+                sess->arg, (long long)sbuf.st_size);
+    }
+    else
+    {
+        sprintf(text, "Opening BINARY mode data connection for %s (%lld bytes).",
+                sess->arg, (long long)sbuf.st_size);
+    }
+    //ＡＳＣＩＩ转化　(选做）
+
+    ftp_reply(sess, FTP_DATACONN, text);
+
+    //下载文件
+    int flag = 0;
+/*
+    long long bytes_to_send = sbuf.st_size;
+    if (offset > bytes_to_send)
+    {
+        bytes_to_send = 0;
+    }
+    if (offset != 0)
+    {
+        bytes_to_send -= offset;
+    }
+
+    while (bytes_to_send)
+    {
+        long long num_this_time = bytes_to_send > 4096 ? 4096 : bytes_to_send;
+        ret = sendfile(fd, sess->data_fd, NULL, 4096);
+        if (ret == -1)
+        {
+            flag = 2;
+            break;
+        }
+        bytes_to_send -= ret;
+    }
+
+    if (bytes_to_send == 0)
+    {
+        flag = 0;
+    }*/
+    char buf[1024];
+    while (1)
+    {
+        ret = read(sess->data_fd, buf, sizeof(buf));
+        if (ret == -1)
+        {
+            if (errno == EINTR)
+            {
+                continue;
+            } else {
+                flag = 2;
+                break;
+            }
+        }
+        else if (ret == 0)
+        {
+            flag = 0;
+            break;
+        }
+
+        if (writen(fd, buf, ret) != ret) {
+            flag = 1;
+            break;
+        }
+    }
+    //关闭数据套接字
+    close(sess->data_fd);
+    sess->data_fd = -1;
+    close(fd);
+    fd = -1;
+    unlock_file(fd);
+    //226
+    if (flag == 0)
+    {
+        ftp_reply(sess, FTP_TRANSFEROK, "Transfer complete.");
+    }
+    else if (flag == 1)
+    {
+        ftp_reply(sess, FTP_BADSENDFILE, "Failure writing from local file");
+    }
+    else if (flag == 2)
+    {
+        ftp_reply(sess, FTP_BADSENDNET, "Failure reading to network stream,");
+    }
+}
+
 void handle_child(session_t *sess)
 {  
     writen(sess->ctrl_fd, (void *)"220 (minifpt 0.1)\r\n", strlen("220 (minifpt 0.1)\r\n"));
@@ -569,7 +708,7 @@ static void do_retr(session_t *sess)
 
     if (offset != 0)
     {
-        ret = lseek(fd, SEEK_SET, offset);
+        ret = lseek(fd, offset, SEEK_SET);
         if (ret == -1)
         {
             ftp_reply(sess, FTP_FILEFAIL, "Failed to open file.");
@@ -580,7 +719,7 @@ static void do_retr(session_t *sess)
     char text[1024] = {0};
     if (sess->is_ascii)
     {
-        sprintf(text, "Opening BINARY mode data connection for %s (%lld bytes).",
+        sprintf(text, "Opening ASCII mode data connection for %s (%lld bytes).",
                 sess->arg, (long long)sbuf.st_size);
     }
     else
@@ -594,6 +733,7 @@ static void do_retr(session_t *sess)
 
     //下载文件
     int flag = 0;
+    /*
     char buf[4096];
     while (1)
     {
@@ -622,10 +762,38 @@ static void do_retr(session_t *sess)
             break;
         }
     }
+*/
+    long long bytes_to_send = sbuf.st_size;
+    if (offset > bytes_to_send)
+    {
+        bytes_to_send = 0;
+    }
+    if (offset != 0)
+    {
+        bytes_to_send -= offset;
+    }
 
+    while (bytes_to_send)
+    {
+        long long num_this_time = bytes_to_send > 4096 ? 4096 : bytes_to_send;
+        ret = sendfile(sess->data_fd, fd, NULL, 4096);
+        if (ret == -1)
+        {
+            flag = 2;
+            break;
+        }
+        bytes_to_send -= ret;
+    }
+
+    if (bytes_to_send == 0)
+    {
+        flag = 0;
+    }
     //关闭数据套接字
     close(sess->data_fd);
     sess->data_fd = -1;
+    close(fd);
+    fd = -1;
     //226
     if (flag == 0)
     {
@@ -640,14 +808,15 @@ static void do_retr(session_t *sess)
         ftp_reply(sess, FTP_BADSENDNET, "Failure writting to network stream,");
     }
 }
+
 static void do_stor(session_t *sess)
 {
-
+    upload_common(sess, 0);
 }
 
 static void do_appe(session_t *sess)
 {
-
+    upload_common(sess, 1);
 }
 
 static void do_list(session_t *sess)
