@@ -9,6 +9,8 @@
 
 /*
 
+
+
 typedef struct session_t
 {
     // 控制链接
@@ -21,13 +23,22 @@ typedef struct session_t
     struct sockaddr_in *port_addr;
     int pasv_listen_fd;
     int data_fd;
+
+    //限速
+    unsigned int bw_upload_rate_max;
+    unsigned int bw_download_rate_max;
+    long bw_transfer_start_sec;
+    long bw_transfer_start_usec;
+
     //父子进程通道
     int parent_fd;
     int child_fd;
     // FTP协议状态
     bool is_ascii;
     long long restart_pos;
+    char *rnfr_name;
 }session_t ;
+
  */
 
 int main()
@@ -45,12 +56,15 @@ int main()
          0,-1,"","","",
          /*数据连接*/
          NULL,-1,-1,
+         /*限速*/
+         0,0 ,0,0
         /*父子进程通道*/
         -1,-1,
          /*FTP协议状态*/
          0,0,NULL
     };
-
+    sess.bw_upload_rate_max = tunable_upload_max_rate;
+    sess.bw_download_rate_max = tunable_download_max_rate;
     signal(SIGCHLD, SIG_IGN);
     int listenfd = tcp_server(NULL, 5188);
     int conn;

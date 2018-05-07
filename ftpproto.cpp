@@ -318,6 +318,54 @@ int list_common(session_t *sess, int detail)
     return 1;
 }
 
+void limit_rate(session_t *sess, int bytes_transfered, int is_upload)
+{
+    long curr_sec = get_time_sec();
+    long curr_usec = get_time_usec();
+
+    double elapsed;
+    elapsed = curr_sec - sess->bw_transfer_start_sec;
+    elapsed +=  (double)(curr_usec - sess->bw_transfer_start_usec) / (double)1000000;
+
+    if (elapsed <= (double)0)
+    {
+        elapsed = 0.01;
+    }
+    //计算当前速度
+    unsigned int bw_rate = (unsigned int)((double)bytes_transfered / elapsed);
+
+    double rate_ratio;
+    if (is_upload)
+    {
+        if(bw_rate <= sess->bw_upload_rate_max)
+        {
+            // 不需要限速
+            sess->bw_transfer_start_sec = curr_sec;
+            sess->bw_transfer_start_usec = curr_usec;
+            return;
+        }
+        rate_ratio = bw_rate / sess->bw_upload_rate_max;
+    }
+    else
+    {
+        if(bw_rate < sess->bw_download_rate_max)
+        {
+            // 不需要限速
+            sess->bw_transfer_start_sec = curr_sec;
+            sess->bw_transfer_start_usec = curr_usec;
+            return;
+        }
+        rate_ratio = bw_rate / sess->bw_download_rate_max;
+    }
+
+    double pavse_time;
+    pavse_time = (rate_ratio - (double)1 ) * elapsed;
+    nano_sleep(pavse_time);
+
+    sess->bw_transfer_start_sec = get_time_sec();
+    sess->bw_transfer_start_sec = get_time_usec();
+}
+
 static void upload_common(session_t *sess, int is_append)
 {
     //创建数据链接
@@ -343,20 +391,35 @@ static void upload_common(session_t *sess, int is_append)
         ftp_reply(sess,  FTP_UPLOADFAIL, "Could not creat file");
         return;
     }
+
+    //STOR
+    //REST + STOR
+    //appe
     if (!is_append && offset == 0)
-    {
+    {   // STOR
         ftruncate(fd, 0);
-        lseek(fd, 0, SEEK_SET);
+        if (lseek(fd, 0, SEEK_SET) < 0)
+        {
+            ftp_reply(sess, FTP_UPLOADFAIL, "Could not create file.");
+            return;
+        }
     }
     else if (!is_append && offset != 0)
-    {
-        lseek(fd, offset, SEEK_SET);
+    { // REST+STOR
+        if (lseek(fd, offset, SEEK_SET) < 0)
+        {
+            ftp_reply(sess, FTP_UPLOADFAIL, "Could not create file.");
+            return;
+        }
     }
     else if (is_append)
-    {
-        lseek(fd, 0, SEEK_END);
+    {   // APPE
+        if (lseek(fd, 0, SEEK_END) < 0)
+        {
+            ftp_reply(sess, FTP_UPLOADFAIL, "Could not create file.");
+            return;
+        }
     }
-
     //150
     struct stat sbuf;
     ret = fstat(fd, &sbuf);
@@ -411,6 +474,8 @@ static void upload_common(session_t *sess, int is_append)
     {
         flag = 0;
     }*/
+    sess->bw_transfer_start_sec = get_time_sec();
+    sess->bw_transfer_start_usec = get_time_usec();
     char buf[1024];
     while (1)
     {
@@ -420,7 +485,9 @@ static void upload_common(session_t *sess, int is_append)
             if (errno == EINTR)
             {
                 continue;
-            } else {
+            }
+            else
+            {
                 flag = 2;
                 break;
             }
@@ -430,8 +497,9 @@ static void upload_common(session_t *sess, int is_append)
             flag = 0;
             break;
         }
-
-        if (writen(fd, buf, ret) != ret) {
+        limit_rate(sess, ret, 1);
+        if (writen(fd, buf, ret) != ret)
+        {
             flag = 1;
             break;
         }
@@ -782,6 +850,7 @@ static void do_retr(session_t *sess)
             flag = 2;
             break;
         }
+        limit_rate(sess, ret, 0);
         bytes_to_send -= ret;
     }
 
