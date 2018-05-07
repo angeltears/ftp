@@ -78,6 +78,8 @@ void parseconf_load_setting(const char *setting) {
 
     char key[128] = {0};
     char value[128] = {0};
+    memset(key, 0, sizeof(key));
+    memset(value, 0, sizeof(key));
     str_split(setting, key, value, '=');
     if (strlen(value) == 0) {
         fprintf(stdout, "mising value in config file for: %s\n", key);
@@ -99,19 +101,25 @@ void parseconf_load_setting(const char *setting) {
     }
 
     const struct parseconf_bool_setting *p_bool_setting = parseconf_bool_array;
-    while (p_bool_setting->p_setting_name != NULL) {
+    while (p_bool_setting->p_setting_name != NULL)
+    {
         if (strcmp(key, p_bool_setting->p_setting_name) == 0)
         {
             str_upper(value);
             if (strcmp(value, "YES") == 0
                 || strcmp(value, "TRUE") == 0
-                || strcmp(value, "1") == 0) {
+                || strcmp(value, "1") == 0)
+            {
                 *(p_bool_setting->p_variable) = 1;
-            } else if (strcmp(value, "NO") == 0
+            }
+            else if (strcmp(value, "NO") == 0
                        || strcmp(value, "FALSE") == 0
-                       || strcmp(value, "0") == 0) {
+                       || strcmp(value, "0") == 0)
+            {
                 *(p_bool_setting->p_variable) = 0;
-            } else {
+            }
+            else
+            {
                 fprintf(stderr, "bad bool value in config file for: %s\n", key);
                 exit(EXIT_FAILURE);
             }
@@ -121,8 +129,10 @@ void parseconf_load_setting(const char *setting) {
     }
 
     const struct parseconf_uint_setting *p_unit_setting = parseconf_uint_array;
-    while (p_unit_setting->p_setting_name != NULL) {
-        if (strcpy(key, p_unit_setting->p_setting_name) == 0) {
+    while (p_unit_setting->p_setting_name != NULL)
+    {
+        if (strcmp(key, p_unit_setting->p_setting_name) == 0)
+        {
             if (value[0] == '0') {
                 *(p_unit_setting->p_variable) = str_octal_to_uint(value);
             } else {

@@ -113,6 +113,54 @@ static ftpcmd_t ctrl_cmds[] = {
         {"ALLO",	NULL	}
 };
 
+session_t *p_sess;
+void handle_alarm_timeout(int sig)
+{
+    shutdown(p_sess->ctrl_fd, SHUT_RD);
+    ftp_reply(p_sess, FTP_IDLE_TIMEOUT, "Timeout");
+    shutdown(p_sess->ctrl_fd, SHUT_WR);
+    exit(EXIT_FAILURE);
+}
+void handle_sigalrm(int sig)
+{
+    if (!p_sess->data_process)
+    {
+        ftp_reply(p_sess, FTP_DATA_TIMEOUT, "Data timeout, Reconnect sorry");
+        exit(EXIT_FAILURE);
+    }
+
+    //否则　当前处于数据传输的状态收到了超时信号
+    p_sess->data_process = 0;
+    start_data_alarm();
+}
+void handle_sigurg(int sig)
+{
+
+}
+void start_cmdio_alarm()
+{
+    if (tunable_idle_session_timeout > 0)
+    {
+        //安装信号
+        signal(SIGALRM, handle_alarm_timeout);
+        //启动闹钟
+        alarm(tunable_idle_session_timeout);
+    }
+}
+void start_data_alarm()
+{
+    if (tunable_data_connection_timeout > 0)
+    {
+        //安装信号
+        signal(SIGALRM, handle_sigalrm);
+        //启动闹钟
+        alarm(tunable_data_connection_timeout);
+    }
+    else if(tunable_idle_session_timeout > 0)
+    {
+        alarm(0);
+    }
+}
 
 int get_port_fd(session_t *sess)
 {
@@ -218,6 +266,12 @@ int get_transfer_fd(session_t *sess)
         free(sess->port_addr);
         sess->port_addr = NULL;
     }
+
+    //重新安装信号　并启动
+    if (ret)
+    {
+        start_data_alarm();
+    }
     return ret;
 }
 int port_active(session_t *sess)
@@ -320,6 +374,9 @@ int list_common(session_t *sess, int detail)
 
 void limit_rate(session_t *sess, int bytes_transfered, int is_upload)
 {
+    //设定处于传输状态
+    sess->data_process = 1;
+
     long curr_sec = get_time_sec();
     long curr_usec = get_time_usec();
 
@@ -523,6 +580,8 @@ static void upload_common(session_t *sess, int is_append)
     {
         ftp_reply(sess, FTP_BADSENDNET, "Failure reading to network stream,");
     }
+
+    start_cmdio_alarm();
 }
 
 void handle_child(session_t *sess)
@@ -534,6 +593,8 @@ void handle_child(session_t *sess)
         memset(sess->cmdline, 0, sizeof(sess->cmdline));
         memset(sess->cmd, 0, sizeof(sess->cmd));
         memset(sess->arg, 0, sizeof(sess->arg));
+
+        start_cmdio_alarm();
         ret = readline(sess->ctrl_fd, sess->cmdline, MAX_COMMAND_LINE);
         if (ret == 1)
             ERR_EXIT("readline");
@@ -563,7 +624,8 @@ void handle_child(session_t *sess)
                 break;
             }
         }
-        if (i == size) {
+        if (i == size)
+        {
             ftp_reply(sess, FTP_BADCMD, "Unknown command.");
         }
     }
@@ -876,6 +938,9 @@ static void do_retr(session_t *sess)
     {
         ftp_reply(sess, FTP_BADSENDNET, "Failure writting to network stream,");
     }
+
+    // 重新开启控制连接闹钟
+    start_cmdio_alarm();
 }
 
 static void do_stor(session_t *sess)

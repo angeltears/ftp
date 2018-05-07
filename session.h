@@ -15,6 +15,7 @@ typedef struct session_t
     struct sockaddr_in *port_addr;
     int pasv_listen_fd;
     int data_fd;
+    int data_process;
 
     //限速
     unsigned int bw_upload_rate_max;
@@ -30,7 +31,7 @@ typedef struct session_t
     long long restart_pos;
     char *rnfr_name;
 }session_t ;
-
+extern session_t *p_sess;
 
 void begin_session(session_t  * sess);
 
