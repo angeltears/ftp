@@ -30,6 +30,7 @@ typedef struct session_t
     bool is_ascii;
     long long restart_pos;
     char *rnfr_name;
+    int abor_received;
 }session_t ;
 extern session_t *p_sess;
 

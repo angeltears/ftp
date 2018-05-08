@@ -135,7 +135,30 @@ void handle_sigalrm(int sig)
 }
 void handle_sigurg(int sig)
 {
+    if (p_sess->data_fd == -1)
+    {
+        return;
+    }
 
+    char cmdline[MAX_COMMAND_LINE] = {0};
+    int ret = readline(p_sess->ctrl_fd, cmdline, MAX_COMMAND_LINE);
+    if (ret <= 0)
+    {
+        ERR_EXIT("readline");
+    }
+    printf("cmdline = %s", cmdline);
+    str_trim_crlf(cmdline);
+
+    if (strcmp(cmdline, "ABOR") == 0
+        || strcmp(cmdline, "\377\364\377\362ABOR") == 0)
+    {
+        p_sess->abor_received = 1;
+        shutdown(p_sess->data_fd, SHUT_RDWR);
+    }
+    else
+    {
+        ftp_reply(p_sess, FTP_BADCMD, "Unknown command.");
+    }
 }
 void start_cmdio_alarm()
 {
@@ -161,6 +184,17 @@ void start_data_alarm()
         alarm(0);
     }
 }
+
+
+void check_abor(session_t *sess)
+{
+    if (sess->abor_received)
+    {
+        sess->abor_received = 0;
+        ftp_reply(sess, FTP_ABOROK, "ABOR successful.");
+    }
+}
+
 
 int get_port_fd(session_t *sess)
 {
@@ -479,7 +513,7 @@ static void upload_common(session_t *sess, int is_append)
     }
     //150
     struct stat sbuf;
-    ret = fstat(fd, &sbuf);
+    fstat(fd, &sbuf);
     if (!S_ISREG(sbuf.st_mode))
     {
         ftp_reply(sess, FTP_UPLOADFAIL, "Could not create file.");
@@ -555,6 +589,11 @@ static void upload_common(session_t *sess, int is_append)
             break;
         }
         limit_rate(sess, ret, 1);
+        if (sess->abor_received)
+        {
+            flag = 2;
+            break;
+        }
         if (writen(fd, buf, ret) != ret)
         {
             flag = 1;
@@ -564,11 +603,10 @@ static void upload_common(session_t *sess, int is_append)
     //关闭数据套接字
     close(sess->data_fd);
     sess->data_fd = -1;
+
     close(fd);
-    fd = -1;
-    unlock_file(fd);
     //226
-    if (flag == 0)
+    if (flag == 0 && !sess->abor_received)
     {
         ftp_reply(sess, FTP_TRANSFEROK, "Transfer complete.");
     }
@@ -581,6 +619,7 @@ static void upload_common(session_t *sess, int is_append)
         ftp_reply(sess, FTP_BADSENDNET, "Failure reading to network stream,");
     }
 
+    check_abor(sess);
     start_cmdio_alarm();
 }
 
@@ -679,6 +718,10 @@ static void do_pass(session_t *sess)
         ftp_reply(sess, FTP_LOGINERR, "Login incorrect.");
         return;
     }
+
+    signal(SIGURG, handle_sigurg);
+    activate_sigurg(sess->ctrl_fd);
+
     umask(tunable_local_umask);
     setegid(pw->pw_gid);
     seteuid(pw->pw_uid);
@@ -732,7 +775,8 @@ static void do_cdup(session_t *sess)
 
 static void do_quit(session_t *sess)
 {
-
+    ftp_reply(sess, FTP_GOODBYE, "Good bye");
+    exit(EXIT_SUCCESS);
 }
 
 
@@ -906,13 +950,18 @@ static void do_retr(session_t *sess)
     while (bytes_to_send)
     {
         long long num_this_time = bytes_to_send > 4096 ? 4096 : bytes_to_send;
-        ret = sendfile(sess->data_fd, fd, NULL, 4096);
+        ret = sendfile(sess->data_fd, fd, NULL, num_this_time);
         if (ret == -1)
         {
             flag = 2;
             break;
         }
         limit_rate(sess, ret, 0);
+        if (sess->abor_received == 1)
+        {
+            flag = 2;
+            break;
+        }
         bytes_to_send -= ret;
     }
 
@@ -926,7 +975,7 @@ static void do_retr(session_t *sess)
     close(fd);
     fd = -1;
     //226
-    if (flag == 0)
+    if (flag == 0 && !sess->abor_received)
     {
         ftp_reply(sess, FTP_TRANSFEROK, "Transfer complete.");
     }
@@ -939,6 +988,7 @@ static void do_retr(session_t *sess)
         ftp_reply(sess, FTP_BADSENDNET, "Failure writting to network stream,");
     }
 
+    check_abor(sess);
     // 重新开启控制连接闹钟
     start_cmdio_alarm();
 }
@@ -1001,7 +1051,7 @@ static void do_rest(session_t *sess)
 
 static void do_abor(session_t *sess)
 {
-
+    ftp_reply(sess, FTP_ABOR_NOCONN, "NO transfer to ABOR.");
 }
 
 static void do_pwd(session_t *sess)
@@ -1114,10 +1164,12 @@ static void do_stat(session_t *sess)
 {
 
 }
+
 static void do_noop(session_t *sess)
 {
-
+    ftp_reply(sess, FTP_NOOPOK, "NOOP ok");
 }
+
 static void do_help(session_t *sess)
 {
 

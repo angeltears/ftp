@@ -38,6 +38,7 @@ typedef struct session_t
     bool is_ascii;
     long long restart_pos;
     char *rnfr_name;
+    int abor_received;
 }session_t ;
 
  */
@@ -79,7 +80,7 @@ int main()
         /*父子进程通道*/
         -1,-1,
          /*FTP协议状态*/
-         0,0,NULL
+         0,0,NULL,0
     };
     p_sess = &sess;
     sess.bw_upload_rate_max = tunable_upload_max_rate;
