@@ -814,7 +814,6 @@ static void do_pasv(session_t *sess)
 
     unsigned short port = ntohs(addr.sin_port);
     */
-
     priv_sock_send_cmd(sess->child_fd, PRIV_SOCK_PASV_LISTEN);
     unsigned short port = priv_sock_get_unshort(sess->child_fd);
     unsigned int v[4];

@@ -62,7 +62,7 @@ int main()
     printf("tunable_local_umask=0%o\n", tunable_local_umask);
     printf("tunable_upload_max_rate=%u\n", tunable_upload_max_rate);
     printf("tunable_download_max_rate=%u\n", tunable_download_max_rate);
-
+    printf("tunable_listen_address=%s\n", tunable_listen_address);
     if (getuid() != 0)
     {
         fprintf(stderr, "miniftp must start be as root\n");
