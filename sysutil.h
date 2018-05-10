@@ -6,6 +6,8 @@ int tcp_server(const char *host, unsigned short port);
 int tcp_client(unsigned short port);
 
 int getlocalip(char *ip);
+bool getpublicIp(char* ip);
+
 
 void activate_nonblock(int fd);
 void deactivate_nonblock(int fd);

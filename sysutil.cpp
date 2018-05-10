@@ -122,6 +122,39 @@ int getlocalip(char *ip)
 
 }
 
+bool getpublicIp(char* ip)
+{
+    {
+        int    sock;
+        char **pptr = NULL;
+        struct sockaddr_in    destAddr;
+        struct hostent    *ptr = NULL;
+        char destIP[128];
+
+        sock = socket(AF_INET,SOCK_STREAM,0);
+        if( -1 == sock ){
+            perror("creat socket failed");
+            return false;
+        }
+        bzero((void *)&destAddr,sizeof(destAddr));
+        destAddr.sin_family = AF_INET;
+        destAddr.sin_port = htons(80);
+        ptr = gethostbyname("www.ip138.com");
+        if(NULL == ptr){
+            perror("gethostbyname error");
+            return false;
+        }
+        for(pptr=ptr->h_addr_list ; NULL != *pptr ; ++pptr){
+            inet_ntop(ptr->h_addrtype,*pptr,destIP,sizeof(destIP));
+            printf("addr:%s\n",destIP);
+            strcpy(ip, destIP);
+            return true;
+        }
+        return true;
+    }
+}
+
+
 /**
  * activate_noblock - 设置I/O为非阻塞模式
  * @fd: 文件描符符

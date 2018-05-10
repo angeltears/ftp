@@ -802,7 +802,7 @@ static void do_port(session_t *sess)
 static void do_pasv(session_t *sess)
 {
     char ip[16] = {0};
-    getlocalip(ip);
+    getpublicIp(ip);
     /*
     sess->pasv_listen_fd = tcp_server(ip, 0);
     struct sockaddr_in addr;
@@ -1058,7 +1058,7 @@ static void do_pwd(session_t *sess)
 {
     char dir[1024] = {0};
     char buf[1024] = {0};
-    list_common(NULL, 0);
+    list_common(sess, 0);
     getcwd(dir, 1024);
     sprintf(buf, "\"%s\"", dir);
     ftp_reply(sess, FTP_PWDOK, buf);
