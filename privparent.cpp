@@ -159,7 +159,7 @@ static void privop_pasv_listen(session_t *sess)
         ERR_EXIT("getsockname");
     }
     unsigned short port = ntohs(addr.sin_port);
-    priv_sock_send_unshort(sess->parent_fd, (int)port);
+    priv_sock_send_int(sess->parent_fd, (int)port);
 }
 
 //获取链接

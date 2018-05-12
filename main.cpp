@@ -1,12 +1,10 @@
 #include "common.h"
 #include "sysutil.h"
 #include "session.h"
-#include "ftpproto.h"
 #include <iostream>
 #include "tunable.h"      
 #include "parseconf.h"
-
-
+#include "hash.h"
 /*
 
 
@@ -42,16 +40,17 @@ typedef struct session_t
 }session_t ;
 
  */
-
-
+unsigned int hash_fun(unsigned int key, void *value)
+{
+    return *(unsigned  *)value % key;
+}
 
 int main()
 {
+    
     parseconf_load_file(MINIFPT_CONFIG);
-
     printf("tunable_pasv_enable=%d\n", tunable_pasv_enable);
     printf("tunable_port_enable=%d\n", tunable_port_enable);
-
     printf("tunable_listen_port=%u\n", tunable_listen_port);
     printf("tunable_max_clients=%u\n", tunable_max_clients);
     printf("tunable_max_per_ip=%u\n", tunable_max_per_ip);
@@ -63,6 +62,8 @@ int main()
     printf("tunable_upload_max_rate=%u\n", tunable_upload_max_rate);
     printf("tunable_download_max_rate=%u\n", tunable_download_max_rate);
     printf("tunable_listen_address=%s\n", tunable_listen_address);
+
+
     if (getuid() != 0)
     {
         fprintf(stderr, "miniftp must start be as root\n");
