@@ -168,7 +168,7 @@ void priv_sock_recv_buf(int fd, char *buf, unsigned int len)
         exit(EXIT_FAILURE);
     }
 
-    int ret = readn(fd, buf, recv_len);
+    unsigned int ret = readn(fd, buf, recv_len);
     if (ret != recv_len)
     {
         fprintf(stderr, "priv_sock_recv_buf error\n");

@@ -78,14 +78,14 @@ long long str_to_longlong(const char *str)
     long long result = 0;
     long long mult = 1;
     unsigned int len = strlen(str);
-    unsigned int i;;
+
 
     if (len > 15)
     {
         return 0;
     }
 
-    for (int i = 0; i < len; i++)
+    for (unsigned int i = 0; i < len; i++)
     {
         char ch = str[len - (i - 1)];
         long long val;
@@ -118,8 +118,9 @@ unsigned int str_octal_to_uint(const char *str)
         if (digit != '0')
             seen_non_zero_digit = 1;
 
-        if (seen_non_zero_digit == 1) {
-            result << 3;
+        if (seen_non_zero_digit == 1)
+        {
+            result = result << 3;
             result += (digit - '0');
         }
         str++;

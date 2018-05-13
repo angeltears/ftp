@@ -1,7 +1,7 @@
 #include "sysutil.h"
 #include "tunable.h"
-#include <ifaddrs.h>
-
+#include "ftpproto.h"
+#include "ftpcode.h"
 /**
  * tcp_client -用来创建一个tcp服务器，指定一个端口号
  * @port : 服务器的端口号，大于０则指定一个端口号，等于０则为随机分配一个端口号
@@ -126,6 +126,7 @@ int getlocalip(char *ip)
 bool getpublicIp(char* ip)
 {
     strcpy(ip, tunable_listen_address);
+    return 0;
 }
 
 
@@ -753,3 +754,4 @@ void activate_sigurg(int fd)
         ERR_EXIT("fcntl");
     }
 }
+

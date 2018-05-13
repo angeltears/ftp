@@ -13,7 +13,7 @@ static void privop_pasv_accept(session_t *sess);
 //写一篇博客　　记一次到ｌｉｎｕｘ内核之旅
 int capset(cap_user_header_t hdrp, const cap_user_data_t datap)
 {
-    syscall(__NR_capset, hdrp, datap);
+    return syscall(__NR_capset, hdrp, datap);
 }
 
 

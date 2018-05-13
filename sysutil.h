@@ -1,6 +1,6 @@
 #pragma once
 #include "common.h"
-
+#include "session.h"
 
 int tcp_server(const char *host, unsigned short port);
 int tcp_client(unsigned short port);
@@ -38,3 +38,7 @@ void nano_sleep(double seconds);
 
 void activate_oobinline(int fd);
 void activate_sigurg(int fd);
+
+
+void check_limits(session_t *sess);
+void handle_sighid(int sig);

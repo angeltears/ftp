@@ -26,11 +26,16 @@ typedef struct session_t
     //父子进程通道
     int parent_fd;
     int child_fd;
+
     // FTP协议状态
     bool is_ascii;
     long long restart_pos;
     char *rnfr_name;
     int abor_received;
+
+    //链接数限制
+    unsigned int num_clients;
+    unsigned int num_this_ip;
 }session_t ;
 extern session_t *p_sess;
 
